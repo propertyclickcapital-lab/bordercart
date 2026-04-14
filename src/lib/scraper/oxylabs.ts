@@ -13,6 +13,8 @@ export async function scrapeWithOxylabs(url: string): Promise<string> {
       source: "universal",
       url,
       render: "html",
+      geo_location: "United States",
+      locale: "en-us",
       browser_instructions: [{ type: "wait", value: 2000 }],
     },
     {
@@ -20,7 +22,7 @@ export async function scrapeWithOxylabs(url: string): Promise<string> {
         username: process.env.OXYLABS_USERNAME!,
         password: process.env.OXYLABS_PASSWORD!,
       },
-      timeout: 30000,
+      timeout: 60000,
     }
   );
   return response.data.results[0].content;

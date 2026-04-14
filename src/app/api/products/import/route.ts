@@ -87,20 +87,22 @@ export async function POST(req: NextRequest) {
 
     // 4) Target specific
     if (!priceUSD && hostname.includes("target.com")) {
-      const targetPrice =
+      const targetText =
         $('[data-test="product-price"]').text() || $('[class*="CurrentPriceStyle"]').first().text() || "";
-      if (targetPrice) priceUSD = parseFloat(targetPrice.replace(/[^0-9.]/g, "")) || 0;
+      const m = targetText.match(/\$(\d+(?:\.\d{1,2})?)/);
+      if (m) priceUSD = parseFloat(m[1]) || 0;
       if (!title) title = $('[data-test="product-title"]').text() || $("h1").first().text();
       if (priceUSD) method ||= "target";
     }
 
     // 5) Lululemon specific
     if (!priceUSD && hostname.includes("lululemon.com")) {
-      const lulPrice =
+      const lulText =
         $('[data-test="price"]').text() ||
         $('[class*="price"]').filter((_, el) => $(el).text().includes("$")).first().text() ||
         "";
-      if (lulPrice) priceUSD = parseFloat(lulPrice.replace(/[^0-9.]/g, "")) || 0;
+      const m = lulText.match(/\$(\d+(?:\.\d{1,2})?)/);
+      if (m) priceUSD = parseFloat(m[1]) || 0;
       if (priceUSD) method ||= "lululemon";
     }
 
