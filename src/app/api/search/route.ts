@@ -5,6 +5,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { searchGoogle } from "@/lib/scraper/search";
 import { logScrape } from "@/lib/scraper/fetch";
+import { oxylabsConfigured, searchWithOxylabs } from "@/lib/scraper/oxylabs";
 
 type Hit = { title: string; imageUrl: string | null; priceUSD: number; store: string; sourceUrl: string };
 
@@ -114,6 +115,76 @@ const MOCK_RESULTS: Hit[] = [
   { title: "Apple Watch Series 9", priceUSD: 399, store: "target", sourceUrl: "https://www.target.com/s?searchTerm=apple+watch", imageUrl: null },
 ];
 
+function normalizeOxylabsItem(raw: any, fallbackStore: string): Hit | null {
+  if (!raw) return null;
+  const title = raw.title || raw.name || raw.product_title;
+  const priceRaw =
+    raw.price ??
+    raw.price_value ??
+    raw.pricing?.price ??
+    raw.price_str ??
+    raw.currentPrice;
+  const priceUSD = typeof priceRaw === "number" ? priceRaw : parseFloat(String(priceRaw || "0").replace(/[^0-9.]/g, ""));
+  const url = raw.url || raw.link || raw.product_url;
+  const imageUrl = raw.url_image || raw.thumbnail || raw.image || raw.image_url || null;
+  if (!title || !url || !priceUSD) return null;
+  return { title: String(title).trim(), imageUrl, priceUSD, store: fallbackStore, sourceUrl: String(url) };
+}
+
+async function oxylabsSearch(q: string): Promise<{ results: Hit[]; googleSuggestions: { title: string; sourceUrl: string; store: string }[] }> {
+  const results: Hit[] = [];
+  const googleSuggestions: { title: string; sourceUrl: string; store: string }[] = [];
+
+  const [amzOk, wmtOk, gOk] = await Promise.allSettled([
+    searchWithOxylabs(q, "amazon"),
+    searchWithOxylabs(q, "walmart"),
+    searchWithOxylabs(q, "google_shopping"),
+  ]);
+
+  function collect(settled: PromiseSettledResult<any>, store: string): Hit[] {
+    if (settled.status !== "fulfilled") {
+      logScrape(`oxylabs-${store}`, false, (settled.reason as Error)?.message).catch(() => {});
+      return [];
+    }
+    logScrape(`oxylabs-${store}`, true).catch(() => {});
+    const content = settled.value;
+    const list: any[] =
+      content?.results?.organic ??
+      content?.results ??
+      content?.products ??
+      content?.items ??
+      [];
+    return list.map((x) => normalizeOxylabsItem(x, store)).filter((x): x is Hit => !!x).slice(0, 8);
+  }
+
+  const amz = collect(amzOk, "amazon");
+  const wmt = collect(wmtOk, "walmart");
+  const total = Math.max(amz.length, wmt.length);
+  for (let i = 0; i < total; i++) {
+    if (amz[i]) results.push(amz[i]);
+    if (wmt[i]) results.push(wmt[i]);
+    if (results.length >= 12) break;
+  }
+
+  if (gOk.status === "fulfilled") {
+    const list: any[] =
+      gOk.value?.results?.organic ?? gOk.value?.results?.paid ?? gOk.value?.results ?? [];
+    for (const item of list) {
+      if (googleSuggestions.length >= 3) break;
+      const title = item.title || item.product_title;
+      const url = item.url || item.link || item.product_url;
+      if (!title || !url) continue;
+      let store = "other";
+      if (url.includes("amazon.com")) store = "amazon";
+      else if (url.includes("walmart.com")) store = "walmart";
+      else if (url.includes("target.com")) store = "target";
+      googleSuggestions.push({ title: String(title), sourceUrl: String(url), store });
+    }
+  }
+
+  return { results: results.slice(0, 12), googleSuggestions };
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -121,6 +192,16 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q")?.trim();
   if (!q) return NextResponse.json({ results: [], googleSuggestions: [] });
+
+  if (oxylabsConfigured()) {
+    try {
+      const out = await oxylabsSearch(q);
+      if (out.results.length > 0) return NextResponse.json(out);
+      // fall through to direct scrape if Oxylabs returned empty
+    } catch (e) {
+      logScrape("oxylabs-search", false, (e as Error)?.message).catch(() => {});
+    }
+  }
 
   const [amz, wmt, tgt, googleSuggestions] = await Promise.all([
     searchAmazon(q),

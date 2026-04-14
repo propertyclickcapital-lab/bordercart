@@ -1,5 +1,6 @@
 import axios from "axios";
 import { prisma } from "../prisma";
+import { oxylabsConfigured, scrapeWithOxylabs } from "./oxylabs";
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
@@ -7,7 +8,7 @@ const USER_AGENTS = [
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36",
 ];
 
-export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string> {
+async function directFetch(url: string, timeoutMs: number): Promise<string> {
   const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
   const { data } = await axios.get<string>(url, {
     headers: {
@@ -21,6 +22,18 @@ export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string>
     validateStatus: (s) => s >= 200 && s < 400,
   });
   return typeof data === "string" ? data : String(data);
+}
+
+export async function fetchHtml(url: string, timeoutMs = 30000): Promise<string> {
+  if (oxylabsConfigured()) {
+    try {
+      return await scrapeWithOxylabs(url);
+    } catch (e) {
+      logScrape("oxylabs-fallback", false, (e as Error)?.message).catch(() => {});
+      return directFetch(url, timeoutMs);
+    }
+  }
+  return directFetch(url, timeoutMs);
 }
 
 export async function logScrape(store: string, success: boolean, errorMessage?: string) {
