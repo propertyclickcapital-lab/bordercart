@@ -18,5 +18,36 @@ export async function GET() {
     }),
   ]);
 
-  return NextResponse.json({ orders, manualRequests });
+  const quoteIds = manualRequests.map((m) => m.quoteId).filter((id): id is string => !!id);
+  const quotes = quoteIds.length
+    ? await prisma.quote.findMany({
+        where: { id: { in: quoteIds } },
+        include: { product: true },
+      })
+    : [];
+  const quoteMap = new Map(quotes.map((q) => [q.id, q]));
+
+  const enrichedManualRequests = manualRequests.map((m) => {
+    const q = m.quoteId ? quoteMap.get(m.quoteId) : null;
+    return {
+      id: m.id,
+      sourceUrl: m.sourceUrl,
+      status: m.status,
+      quotedPriceMXN: m.quotedPriceMXN ? m.quotedPriceMXN.toString() : null,
+      adminNote: m.adminNote,
+      createdAt: m.createdAt,
+      quoteId: m.quoteId,
+      quote: q
+        ? {
+            id: q.id,
+            totalMXN: q.totalMXN.toString(),
+            expiresAt: q.expiresAt,
+            adminSetPrice: q.adminSetPrice,
+            product: { title: q.product.title, imageUrl: q.product.imageUrl, store: q.product.store },
+          }
+        : null,
+    };
+  });
+
+  return NextResponse.json({ orders, manualRequests: enrichedManualRequests });
 }

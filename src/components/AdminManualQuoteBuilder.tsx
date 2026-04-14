@@ -67,7 +67,7 @@ export function AdminManualQuoteBuilder({
       return;
     }
     setLoading(true);
-    const r = await fetch(`/api/admin/manual-reviews/${manualRequestId}/send-quote`, {
+    const r = await fetch(`/api/admin/manual-reviews/${manualRequestId}/approve`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title, imageUrl, store,

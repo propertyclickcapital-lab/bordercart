@@ -12,11 +12,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { id } = await params;
-  const mr = await prisma.manualRequest.findUnique({
-    where: { id },
-    include: { user: true },
-  });
+  const mr = await prisma.manualRequest.findUnique({ where: { id }, include: { user: true } });
   if (!mr) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (mr.quoteId) {
+    return NextResponse.json({ success: true, quoteId: mr.quoteId, alreadyReviewed: true });
+  }
 
   const body = await req.json();
   const {
@@ -73,7 +74,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       commissionPercent: Number(commissionPercent) || 0,
       fxRateUsed: Number(fxRateUsed) || 17.5,
       adminSetPrice: true,
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
     },
   });
 
@@ -81,6 +82,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     where: { id },
     data: {
       status: "reviewed",
+      quoteId: quote.id,
       quotedPriceMXN: Number(totalMXN),
       adminNote: adminNote || null,
     },
@@ -88,6 +90,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const origin = process.env.NEXT_PUBLIC_APP_URL || "";
   const quoteUrl = `${origin}/quote/${quote.id}`;
+  const amountStr = formatMXN(Number(totalMXN));
 
   if (mr.user.email) {
     const html = renderOrderEmail({
@@ -95,21 +98,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       productTitle: product.title,
       productImageUrl: product.imageUrl,
       orderId: quote.id,
-      statusLabel: "Tu precio está listo 🎉",
-      body: `Preparamos un precio especial para ti: <strong>${formatMXN(Number(totalMXN))} MXN</strong>. Aprovéchalo dentro de las próximas 24 horas.`,
+      statusLabel: "🎉 ¡Tu precio está listo!",
+      body: `Preparamos un precio especial para ti: <strong>${amountStr}</strong>. Este precio es válido por 48 horas.`,
       trackingUrl: quoteUrl,
     });
     sendEmail({
       to: mr.user.email,
-      subject: `Tu precio está listo — ${formatMXN(Number(totalMXN))}`,
+      subject: "🎉 ¡Tu precio está listo! — BorderCart",
       html,
     }).catch(() => {});
   }
 
   if (mr.whatsappNumber) {
+    const name = mr.user.name || "";
     sendWhatsAppMessage(
       mr.whatsappNumber,
-      `🎉 ¡Tu precio está listo! ${product.title} — ${formatMXN(Number(totalMXN))}. Compra ahora: ${quoteUrl}`
+      `🎉 ¡Hola ${name}! Tu precio está listo. ${product.title} — ${amountStr}. Compra aquí: ${quoteUrl}`
     ).catch(() => {});
   }
 

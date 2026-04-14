@@ -2,10 +2,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { OrderCard } from "@/components/OrderCard";
-import { ManualRequestCard } from "@/components/ManualRequestCard";
+import { LiveActivityList } from "@/components/LiveActivityList";
 import { LinkInput } from "@/components/LinkInput";
 import { Package } from "lucide-react";
+
+export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {
   const session = await getServerSession(authOptions);
@@ -16,15 +17,48 @@ export default async function OrdersPage() {
     prisma.manualRequest.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: "desc" } }),
   ]);
 
-  const combined = [
-    ...orders.map((o) => ({ kind: "order" as const, createdAt: o.createdAt, data: o })),
-    ...manualRequests.map((m) => ({ kind: "manual" as const, createdAt: m.createdAt, data: m })),
-  ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const quoteIds = manualRequests.map((m) => m.quoteId).filter((x): x is string => !!x);
+  const quotes = quoteIds.length
+    ? await prisma.quote.findMany({ where: { id: { in: quoteIds } }, include: { product: true } })
+    : [];
+  const quoteMap = new Map(quotes.map((q) => [q.id, q]));
+
+  const enrichedManual = manualRequests.map((m) => {
+    const q = m.quoteId ? quoteMap.get(m.quoteId) : null;
+    return {
+      id: m.id,
+      sourceUrl: m.sourceUrl,
+      status: m.status,
+      quotedPriceMXN: m.quotedPriceMXN ? m.quotedPriceMXN.toString() : null,
+      adminNote: m.adminNote,
+      createdAt: m.createdAt.toISOString(),
+      quoteId: m.quoteId,
+      quote: q
+        ? {
+            id: q.id,
+            totalMXN: q.totalMXN.toString(),
+            expiresAt: q.expiresAt.toISOString(),
+            adminSetPrice: q.adminSetPrice,
+            product: { title: q.product.title, imageUrl: q.product.imageUrl, store: q.product.store },
+          }
+        : null,
+    };
+  });
+
+  const initialOrders = orders.map((o) => ({
+    ...o,
+    createdAt: o.createdAt.toISOString() as any,
+    updatedAt: o.updatedAt.toISOString() as any,
+    totalPaidMXN: o.totalPaidMXN.toString() as any,
+    creditAppliedMXN: o.creditAppliedMXN.toString() as any,
+  }));
+
+  const empty = orders.length === 0 && manualRequests.length === 0;
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">Your orders</h1>
-      {combined.length === 0 ? (
+      {empty ? (
         <div className="rounded-lg border border-dashed border-[var(--border)] bg-white p-12 text-center">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--bg)]">
             <Package className="h-6 w-6 text-[var(--ink-3)]" />
@@ -34,25 +68,7 @@ export default async function OrdersPage() {
           <div className="mt-6 mx-auto max-w-lg"><LinkInput /></div>
         </div>
       ) : (
-        <div className="space-y-3">
-          {combined.map((item) =>
-            item.kind === "order" ? (
-              <OrderCard key={`o-${item.data.id}`} order={item.data} />
-            ) : (
-              <ManualRequestCard
-                key={`m-${item.data.id}`}
-                request={{
-                  id: item.data.id,
-                  sourceUrl: item.data.sourceUrl,
-                  status: item.data.status,
-                  quotedPriceMXN: item.data.quotedPriceMXN ? item.data.quotedPriceMXN.toString() : null,
-                  adminNote: item.data.adminNote,
-                  createdAt: item.data.createdAt.toISOString(),
-                }}
-              />
-            )
-          )}
-        </div>
+        <LiveActivityList initial={{ orders: initialOrders as any, manualRequests: enrichedManual }} />
       )}
     </div>
   );

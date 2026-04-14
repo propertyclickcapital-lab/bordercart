@@ -23,7 +23,8 @@
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Custom checkout: Stripe Elements with Card/SPEI/OXXO tabs, PaymentIntents + confirm endpoint, webhook handles payment_intent.succeeded\")",
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Add .npmrc legacy-peer-deps for @stripe/react-stripe-js\")",
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Manual bank transfer checkout tab: upload proof, admin approve/reject, buyer+admin notifications\")",
-      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Admin manual review cost breakdown + celebratory buyer quote view with confetti and count-up\")"
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Admin manual review cost breakdown + celebratory buyer quote view with confetti and count-up\")",
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"End-to-end manual review: save quoteId on MR, big actionable card on dashboard, live polling + toast\")"
     ]
   }
 }

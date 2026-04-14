@@ -3,14 +3,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { LinkInput } from "@/components/LinkInput";
 import { TierProgress } from "@/components/TierProgress";
-import { OrderCard } from "@/components/OrderCard";
-import { ManualRequestCard } from "@/components/ManualRequestCard";
+import { LiveActivityList } from "@/components/LiveActivityList";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { TierBadge } from "@/components/TierBadge";
 import { ReferralCard } from "@/components/ReferralCard";
 import { formatMXN } from "@/lib/utils/currency";
 import Link from "next/link";
-import { Package, ShoppingBag, Heart } from "lucide-react";
+import { ShoppingBag, Heart } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +26,41 @@ export default async function Dashboard() {
   if (!user) return null;
   const activeOrders = orders.filter((o) => !["delivered", "cancelled"].includes(o.status));
 
-  const combined = [
-    ...orders.map((o) => ({ kind: "order" as const, createdAt: o.createdAt, data: o })),
-    ...manualRequests.map((m) => ({ kind: "manual" as const, createdAt: m.createdAt, data: m })),
-  ]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 5);
+  const quoteIds = manualRequests.map((m) => m.quoteId).filter((x): x is string => !!x);
+  const quotes = quoteIds.length
+    ? await prisma.quote.findMany({ where: { id: { in: quoteIds } }, include: { product: true } })
+    : [];
+  const quoteMap = new Map(quotes.map((q) => [q.id, q]));
+
+  const enrichedManual = manualRequests.map((m) => {
+    const q = m.quoteId ? quoteMap.get(m.quoteId) : null;
+    return {
+      id: m.id,
+      sourceUrl: m.sourceUrl,
+      status: m.status,
+      quotedPriceMXN: m.quotedPriceMXN ? m.quotedPriceMXN.toString() : null,
+      adminNote: m.adminNote,
+      createdAt: m.createdAt.toISOString(),
+      quoteId: m.quoteId,
+      quote: q
+        ? {
+            id: q.id,
+            totalMXN: q.totalMXN.toString(),
+            expiresAt: q.expiresAt.toISOString(),
+            adminSetPrice: q.adminSetPrice,
+            product: { title: q.product.title, imageUrl: q.product.imageUrl, store: q.product.store },
+          }
+        : null,
+    };
+  });
+
+  const initialOrders = orders.map((o) => ({
+    ...o,
+    createdAt: o.createdAt.toISOString() as any,
+    updatedAt: o.updatedAt.toISOString() as any,
+    totalPaidMXN: o.totalPaidMXN.toString() as any,
+    creditAppliedMXN: o.creditAppliedMXN.toString() as any,
+  }));
 
   return (
     <div className="space-y-8">
@@ -76,35 +104,7 @@ export default async function Dashboard() {
           <h2 className="text-lg font-semibold">Recent activity</h2>
           <Link href="/orders" className="text-sm text-[var(--blue)] hover:underline">View all →</Link>
         </div>
-        {combined.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[var(--border)] bg-white p-10 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg)]">
-              <Package className="h-5 w-5 text-[var(--ink-3)]" />
-            </div>
-            <h3 className="mt-4 font-semibold">No orders yet</h3>
-            <p className="mt-1 text-sm text-[var(--ink-2)]">Paste your first link above to get started.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {combined.map((item) =>
-              item.kind === "order" ? (
-                <OrderCard key={`o-${item.data.id}`} order={item.data} />
-              ) : (
-                <ManualRequestCard
-                  key={`m-${item.data.id}`}
-                  request={{
-                    id: item.data.id,
-                    sourceUrl: item.data.sourceUrl,
-                    status: item.data.status,
-                    quotedPriceMXN: item.data.quotedPriceMXN ? item.data.quotedPriceMXN.toString() : null,
-                    adminNote: item.data.adminNote,
-                    createdAt: item.data.createdAt.toISOString(),
-                  }}
-                />
-              )
-            )}
-          </div>
-        )}
+        <LiveActivityList initial={{ orders: initialOrders as any, manualRequests: enrichedManual }} limit={5} />
       </section>
 
       {wishlistCount > 0 && (
