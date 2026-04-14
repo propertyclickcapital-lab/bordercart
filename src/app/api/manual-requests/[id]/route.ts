@@ -1,0 +1,18 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const s = await getServerSession(authOptions);
+  if (!s?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { id } = await params;
+  const r = await prisma.manualRequest.findUnique({ where: { id } });
+  if (!r || (r.userId !== s.user.id && s.user.role !== "ADMIN")) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const body = await req.json();
+  const updated = await prisma.manualRequest.update({
+    where: { id },
+    data: { whatsappNumber: body.whatsappNumber },
+  });
+  return NextResponse.json(updated);
+}

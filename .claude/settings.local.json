@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/prope/**)",
+      "Bash(rm -rf bordercart)",
+      "Bash(mkdir bordercart:*)",
+      "Bash(npx:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"continue wipe it and procceed\" npx prisma:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npm install:*)",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"Go. Use cheerio for scraping. Build the webhook endpoint with a TODO note. When you hit the prisma reset consent guard, yes wipe it. Execute everything end-to-end autonomously.\" npx prisma migrate reset --force --skip-seed)",
+      "Bash(ls *.md)",
+      "Bash(node:*)",
+      "Bash(git add:*)",
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Add activation features: search, wishlist, emails, WhatsApp, trending, referrals, price history, recovery\")",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"Yes, wipe and rebuild. Execute Steps 1-14 end to end without stopping.\" npx prisma migrate reset --force --skip-seed)"
+    ]
+  }
+}
