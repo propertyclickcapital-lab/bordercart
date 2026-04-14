@@ -10,6 +10,7 @@ import { WishlistHeart } from "@/components/WishlistHeart";
 import { ShieldCheck, MapPin, Package } from "lucide-react";
 import { getTierLabel } from "@/lib/pricing/tiers";
 import { CancelledBanner } from "@/components/CancelledBanner";
+import { SpecialQuoteView } from "@/components/SpecialQuoteView";
 
 export default async function QuotePage({ params }: { params: Promise<{ quoteId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -21,6 +22,24 @@ export default async function QuotePage({ params }: { params: Promise<{ quoteId:
     include: { product: true, user: true },
   });
   if (!quote || quote.userId !== session.user.id) notFound();
+
+  if (quote.adminSetPrice) {
+    return (
+      <div className="mx-auto max-w-5xl py-4">
+        <SpecialQuoteView
+          quoteId={quote.id}
+          totalMXN={Number(quote.totalMXN)}
+          productTitle={quote.product.title}
+          productImageUrl={quote.product.imageUrl}
+          store={quote.product.store}
+          deliveryDaysMin={quote.deliveryDaysMin}
+          deliveryDaysMax={quote.deliveryDaysMax}
+          expiresAt={quote.expiresAt.toISOString()}
+          userTier={quote.user.tier}
+        />
+      </div>
+    );
+  }
 
   const saved = await prisma.wishlist.findUnique({
     where: { userId_productId: { userId: session.user.id, productId: quote.productId } },

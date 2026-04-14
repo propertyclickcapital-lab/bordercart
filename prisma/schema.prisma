@@ -185,6 +185,12 @@ model Quote {
   totalMXN             Decimal         @db.Decimal(14, 2)
   deliveryDaysMin      Int             @default(7)
   deliveryDaysMax      Int             @default(14)
+  productCostUSD       Decimal?        @db.Decimal(12, 2)
+  shippingToSdUSD      Decimal?        @db.Decimal(12, 2)
+  shippingToMxUSD      Decimal?        @db.Decimal(12, 2)
+  commissionPercent    Decimal?        @db.Decimal(6, 4)
+  fxRateUsed           Decimal?        @db.Decimal(12, 6)
+  adminSetPrice        Boolean         @default(false)
   expiresAt            DateTime
   createdAt            DateTime        @default(now())
   user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)

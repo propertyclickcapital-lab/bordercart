@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import Link from "next/link";
-import { ManualReviewActions } from "@/components/ManualReviewActions";
+import { ArrowRight } from "lucide-react";
+import { formatMXN } from "@/lib/utils/currency";
 
 export default async function AdminManualReviews() {
   const items = await prisma.manualRequest.findMany({
     orderBy: { createdAt: "desc" },
-    include: { user: { select: { email: true, name: true } } },
+    include: { user: { select: { email: true, name: true, tier: true } } },
     take: 200,
   });
 
@@ -24,17 +25,26 @@ export default async function AdminManualReviews() {
       ) : (
         <div className="space-y-3">
           {items.map((r) => (
-            <div key={r.id} className="rounded-lg border border-[var(--border)] bg-white p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-xs text-[var(--ink-2)]">{format(new Date(r.createdAt), "MMM d, HH:mm")} · {r.user.email}</p>
-                  <Link href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1 text-sm text-[var(--blue)] hover:underline break-all">{r.sourceUrl}</Link>
-                  <div className="mt-2"><Badge variant={r.status === "pending" ? "warning" : r.status === "quoted" ? "success" : "info"}>{r.status}</Badge></div>
-                  {r.whatsappNumber && <p className="mt-1 text-xs text-[var(--ink-2)]">WA: {r.whatsappNumber}</p>}
+            <Link
+              key={r.id}
+              href={`/admin/manual-reviews/${r.id}`}
+              className="group flex items-center justify-between gap-4 rounded-lg border border-[var(--border)] bg-white p-4 hover:border-[var(--blue)] hover:shadow-md transition-all"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-[var(--ink-2)]">
+                  {format(new Date(r.createdAt), "MMM d, HH:mm")} · {r.user.email} · {r.user.tier}
+                </p>
+                <p className="mt-1 text-sm text-[var(--ink)] break-all line-clamp-1">{r.sourceUrl}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <Badge variant={r.status === "pending" ? "warning" : r.status === "reviewed" ? "success" : "info"}>
+                    {r.status}
+                  </Badge>
+                  {r.quotedPriceMXN && <Badge variant="blue">{formatMXN(Number(r.quotedPriceMXN))}</Badge>}
+                  {r.whatsappNumber && <span className="text-xs text-[var(--ink-2)]">WA: {r.whatsappNumber}</span>}
                 </div>
-                <ManualReviewActions id={r.id} initialStatus={r.status} initialQuoted={r.quotedPriceMXN ? Number(r.quotedPriceMXN) : null} initialNote={r.adminNote ?? ""} />
               </div>
-            </div>
+              <ArrowRight className="h-5 w-5 text-[var(--ink-3)] group-hover:text-[var(--blue)] group-hover:translate-x-1 transition-transform" />
+            </Link>
           ))}
         </div>
       )}
