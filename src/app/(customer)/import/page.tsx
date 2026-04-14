@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function ImportPage() {
   return (
@@ -16,65 +16,46 @@ function Inner() {
   const params = useSearchParams();
   const router = useRouter();
   const url = params.get("url");
-  const [status, setStatus] = useState<string>("Detecting store...");
-  const [err, setErr] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("Importing product...");
   const ran = useRef(false);
 
   useEffect(() => {
     if (!url || ran.current) return;
     ran.current = true;
     (async () => {
+      setStatus("Reading product page...");
+      let data: any = null;
       try {
-        setStatus("Importing product details...");
         const r = await fetch("/api/products/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url }),
         });
-        if (!r.ok) throw new Error("Could not import");
-        const product = await r.json();
-        if (product.manual && product.requestId) {
-          router.push(`/import/manual/${product.requestId}`);
-          return;
-        }
-        if (!product.isSupported || Number(product.priceUSD) <= 0) {
-          const mr = await fetch("/api/manual-requests", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sourceUrl: url }),
-          });
-          const mrData = await mr.json();
-          router.push(`/import/manual/${mrData.id}`);
-          return;
-        }
-        setStatus("Calculating your MXN price...");
-        const q = await fetch("/api/quotes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ productId: product.id }),
-        });
-        if (!q.ok) throw new Error("Could not create quote");
-        const quote = await q.json();
-        router.push(`/quote/${quote.id}`);
-      } catch (e: any) {
-        setErr(e.message || "Something went wrong");
+        data = await r.json().catch(() => null);
+      } catch {}
+
+      if (data?.quoteId) {
+        router.push(`/quote/${data.quoteId}`);
+        return;
       }
+
+      if (data?.manual && data?.requestId) {
+        router.push(`/import/processing/${data.requestId}`);
+        return;
+      }
+
+      const mr = await fetch("/api/manual-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceUrl: url }),
+      });
+      const mrData = await mr.json().catch(() => null);
+      if (mrData?.id) router.push(`/import/processing/${mrData.id}`);
+      else router.push(`/dashboard`);
     })();
   }, [url, router]);
 
   if (!url) return <div className="py-16 text-center text-[var(--ink-2)]">No URL provided.</div>;
-
-  if (err) {
-    return (
-      <div className="mx-auto max-w-md py-16 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
-          <AlertTriangle className="h-6 w-6 text-[var(--warning)]" />
-        </div>
-        <h1 className="mt-4 text-xl font-bold">Something went wrong</h1>
-        <p className="mt-2 text-sm text-[var(--ink-2)]">{err}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
