@@ -36,9 +36,11 @@ export async function fetchHtml(url: string, timeoutMs = 30000): Promise<string>
   return directFetch(url, timeoutMs);
 }
 
-export async function logScrape(store: string, success: boolean, errorMessage?: string) {
+export async function logScrape(store: string, success: boolean, errorMessage?: string, method?: string) {
   try {
-    await prisma.scrapingLog.create({ data: { store, success, errorMessage: errorMessage ?? null } });
+    await prisma.scrapingLog.create({
+      data: { store, success, errorMessage: errorMessage ?? null, method: method ?? null },
+    });
   } catch {
     // ignore
   }

@@ -372,6 +372,7 @@ model ScrapingLog {
   id           String   @id @default(cuid())
   store        String
   success      Boolean
+  method       String?
   errorMessage String?  @db.Text
   createdAt    DateTime @default(now())
 
