@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,10 +10,5 @@ export default async function ManualReviewPage({ params }: { params: Promise<{ r
   const { requestId } = await params;
   const req = await prisma.manualRequest.findUnique({ where: { id: requestId } });
   if (!req || req.userId !== session.user.id) notFound();
-
-  return (
-    <Suspense fallback={null}>
-      <ManualReviewScreen requestId={req.id} sourceUrl={req.sourceUrl} initialPhone={req.whatsappNumber} />
-    </Suspense>
-  );
+  return <ManualReviewScreen requestId={req.id} sourceUrl={req.sourceUrl} initialPhone={req.whatsappNumber} />;
 }

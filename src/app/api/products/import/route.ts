@@ -17,9 +17,26 @@ export async function POST(req: Request) {
     where: { sourceUrl: url },
     orderBy: { scrapedAt: "desc" },
   });
-  if (existing && Date.now() - existing.scrapedAt.getTime() < CACHE_MS) return NextResponse.json(existing);
+  if (existing && Date.now() - existing.scrapedAt.getTime() < CACHE_MS && existing.isSupported) {
+    return NextResponse.json(existing);
+  }
 
-  const scraped = await scrapeProduct(url);
+  let scraped;
+  try {
+    scraped = await scrapeProduct(url);
+  } catch {
+    scraped = null;
+  }
+
+  const failed = !scraped || !scraped.isSupported || !(scraped.priceUSD > 0);
+
+  if (failed) {
+    const req = await prisma.manualRequest.create({
+      data: { userId: session.user.id, sourceUrl: url, status: "pending" },
+    });
+    return NextResponse.json({ manual: true, requestId: req.id });
+  }
+
   const product = await prisma.importedProduct.create({
     data: {
       sourceUrl: scraped.sourceUrl,

@@ -33,6 +33,10 @@ function Inner() {
         });
         if (!r.ok) throw new Error("Could not import");
         const product = await r.json();
+        if (product.manual && product.requestId) {
+          router.push(`/import/manual/${product.requestId}`);
+          return;
+        }
         if (!product.isSupported || Number(product.priceUSD) <= 0) {
           const mr = await fetch("/api/manual-requests", {
             method: "POST",
@@ -40,7 +44,7 @@ function Inner() {
             body: JSON.stringify({ sourceUrl: url }),
           });
           const mrData = await mr.json();
-          router.push(`/import/manual/${mrData.id}?url=${encodeURIComponent(url)}`);
+          router.push(`/import/manual/${mrData.id}`);
           return;
         }
         setStatus("Calculating your MXN price...");
