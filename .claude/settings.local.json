@@ -20,7 +20,8 @@
       "Bash(curl -s -i -X POST https://bordercart.vercel.app/api/auth/callback/credentials -H 'Content-Type: application/x-www-form-urlencoded' -H 'cookie: next-auth.csrf-token=test' -d 'email=buyer@bordercart.com&password=Buyer123%21&csrfToken=test&json=true')",
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Login: try/catch + window.location hard navigate; re-seed accounts at bcrypt cost 12\")",
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Show manual review requests in buyer order history + dashboard alongside orders\")",
-      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Custom checkout: Stripe Elements with Card/SPEI/OXXO tabs, PaymentIntents + confirm endpoint, webhook handles payment_intent.succeeded\")"
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Custom checkout: Stripe Elements with Card/SPEI/OXXO tabs, PaymentIntents + confirm endpoint, webhook handles payment_intent.succeeded\")",
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Add .npmrc legacy-peer-deps for @stripe/react-stripe-js\")"
     ]
   }
 }
