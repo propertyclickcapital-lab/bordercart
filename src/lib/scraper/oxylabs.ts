@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const OXYLABS_URL = "https://realtime.oxylabs.io/v1/querys";
+const OXYLABS_URL = "https://realtime.oxylabs.io/v1/queries";
 
 export function oxylabsConfigured(): boolean {
   return !!process.env.OXYLABS_USERNAME && !!process.env.OXYLABS_PASSWORD;
