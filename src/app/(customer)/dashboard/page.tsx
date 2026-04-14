@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { LinkInput } from "@/components/LinkInput";
 import { TierProgress } from "@/components/TierProgress";
 import { OrderCard } from "@/components/OrderCard";
+import { ManualRequestCard } from "@/components/ManualRequestCard";
 import { WelcomeModal } from "@/components/WelcomeModal";
 import { TierBadge } from "@/components/TierBadge";
 import { ReferralCard } from "@/components/ReferralCard";
@@ -17,13 +18,21 @@ export default async function Dashboard() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return null;
 
-  const [user, orders, wishlistCount] = await Promise.all([
+  const [user, orders, manualRequests, wishlistCount] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id }, include: { tierStatus: true } }),
-    prisma.order.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: "desc" }, take: 5 }),
+    prisma.order.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: "desc" } }),
+    prisma.manualRequest.findMany({ where: { userId: session.user.id }, orderBy: { createdAt: "desc" } }),
     prisma.wishlist.count({ where: { userId: session.user.id } }),
   ]);
   if (!user) return null;
   const activeOrders = orders.filter((o) => !["delivered", "cancelled"].includes(o.status));
+
+  const combined = [
+    ...orders.map((o) => ({ kind: "order" as const, createdAt: o.createdAt, data: o })),
+    ...manualRequests.map((m) => ({ kind: "manual" as const, createdAt: m.createdAt, data: m })),
+  ]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 5);
 
   return (
     <div className="space-y-8">
@@ -64,10 +73,10 @@ export default async function Dashboard() {
 
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">Recent orders</h2>
+          <h2 className="text-lg font-semibold">Recent activity</h2>
           <Link href="/orders" className="text-sm text-[var(--blue)] hover:underline">View all →</Link>
         </div>
-        {orders.length === 0 ? (
+        {combined.length === 0 ? (
           <div className="rounded-lg border border-dashed border-[var(--border)] bg-white p-10 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg)]">
               <Package className="h-5 w-5 text-[var(--ink-3)]" />
@@ -76,7 +85,25 @@ export default async function Dashboard() {
             <p className="mt-1 text-sm text-[var(--ink-2)]">Paste your first link above to get started.</p>
           </div>
         ) : (
-          <div className="space-y-3">{orders.map((o) => <OrderCard key={o.id} order={o} />)}</div>
+          <div className="space-y-3">
+            {combined.map((item) =>
+              item.kind === "order" ? (
+                <OrderCard key={`o-${item.data.id}`} order={item.data} />
+              ) : (
+                <ManualRequestCard
+                  key={`m-${item.data.id}`}
+                  request={{
+                    id: item.data.id,
+                    sourceUrl: item.data.sourceUrl,
+                    status: item.data.status,
+                    quotedPriceMXN: item.data.quotedPriceMXN ? item.data.quotedPriceMXN.toString() : null,
+                    adminNote: item.data.adminNote,
+                    createdAt: item.data.createdAt.toISOString(),
+                  }}
+                />
+              )
+            )}
+          </div>
         )}
       </section>
 
