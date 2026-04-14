@@ -5,7 +5,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { searchGoogle } from "@/lib/scraper/search";
 import { logScrape } from "@/lib/scraper/fetch";
-import { oxylabsConfigured, searchWithOxylabs } from "@/lib/scraper/oxylabs";
+import { oxylabsConfigured, scrapeWithOxylabs, searchWithOxylabs } from "@/lib/scraper/oxylabs";
 
 type Hit = { title: string; imageUrl: string | null; priceUSD: number; store: string; sourceUrl: string };
 
@@ -18,6 +18,9 @@ const HEADERS = {
 };
 
 async function get(url: string): Promise<string> {
+  if (oxylabsConfigured()) {
+    return scrapeWithOxylabs(url);
+  }
   const { data } = await axios.get<string>(url, {
     headers: HEADERS,
     timeout: 15000,

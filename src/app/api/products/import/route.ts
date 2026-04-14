@@ -1,4 +1,3 @@
-import axios from "axios";
 import * as cheerio from "cheerio";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
@@ -7,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateOrderPrice } from "@/lib/pricing/engine";
 import { getFxRate } from "@/lib/pricing/fx";
 import { getActivePricingRule } from "@/lib/pricing-rule";
+import { scrapeWithOxylabs } from "@/lib/scraper/oxylabs";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -17,17 +17,8 @@ export async function POST(req: NextRequest) {
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
   try {
-    const response = await axios.get(url, {
-      timeout: 10000,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
-
-    const $ = cheerio.load(response.data);
+    const html = await scrapeWithOxylabs(url);
+    const $ = cheerio.load(html);
 
     const title =
       $('meta[property="og:title"]').attr("content") ||
