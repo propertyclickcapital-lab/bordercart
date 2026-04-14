@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +16,8 @@ export default function LoginPage() {
 }
 
 function Inner() {
-  const router = useRouter();
   const params = useSearchParams();
+  const callbackUrl = params.get("callbackUrl") || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,12 +25,25 @@ function Inner() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true); setErr(null);
-    const res = await signIn("credentials", { email, password, redirect: false });
-    setLoading(false);
-    if (res?.error) { setErr("Invalid email or password"); return; }
-    router.push(params.get("callbackUrl") || "/dashboard");
-    router.refresh();
+    setLoading(true);
+    setErr(null);
+    try {
+      const res = await signIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password,
+        redirect: false,
+        callbackUrl,
+      });
+      if (!res || res.error || !res.ok) {
+        setErr("Invalid email or password");
+        setLoading(false);
+        return;
+      }
+      window.location.href = res.url || callbackUrl;
+    } catch {
+      setErr("Something went wrong. Please try again.");
+      setLoading(false);
+    }
   }
 
   return (

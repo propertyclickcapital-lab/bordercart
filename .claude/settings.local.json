@@ -16,7 +16,9 @@
       "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"Yes, wipe and rebuild. Execute Steps 1-14 end to end without stopping.\" npx prisma migrate reset --force --skip-seed)",
       "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Fix: scrape failure → manual request + premium review screen; search headers + Target + mock fallback\")",
       "Bash(mkdir -p \"src/app/\\(customer\\)/import/processing/[requestId]\")",
-      "Bash(mv \"src/app/\\(customer\\)/import/manual/[requestId]/page.tsx\" \"src/app/\\(customer\\)/import/processing/[requestId]/page.tsx\")"
+      "Bash(mv \"src/app/\\(customer\\)/import/manual/[requestId]/page.tsx\" \"src/app/\\(customer\\)/import/processing/[requestId]/page.tsx\")",
+      "Bash(curl -s -i -X POST https://bordercart.vercel.app/api/auth/callback/credentials -H 'Content-Type: application/x-www-form-urlencoded' -H 'cookie: next-auth.csrf-token=test' -d 'email=buyer@bordercart.com&password=Buyer123%21&csrfToken=test&json=true')",
+      "Bash(git -c user.email=claude@anthropic.com -c user.name=Claude commit -m \"Login: try/catch + window.location hard navigate; re-seed accounts at bcrypt cost 12\")"
     ]
   }
 }

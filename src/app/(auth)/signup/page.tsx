@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ export default function SignupPage() {
 }
 
 function Inner() {
-  const router = useRouter();
   const params = useSearchParams();
   const initialRef = params.get("ref") || "";
   const [name, setName] = useState("");
@@ -31,21 +30,34 @@ function Inner() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setErr(null);
-    const r = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password, phone, ref: ref || undefined }),
-    });
-    if (!r.ok) {
-      const d = await r.json().catch(() => ({}));
-      setErr(d.error || "Something went wrong");
+    try {
+      const r = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email: email.trim().toLowerCase(), password, phone, ref: ref || undefined }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        setErr(d.error || "Something went wrong");
+        setLoading(false);
+        return;
+      }
+      const res = await signIn("credentials", {
+        email: email.trim().toLowerCase(),
+        password,
+        redirect: false,
+        callbackUrl: "/dashboard",
+      });
+      if (!res || res.error || !res.ok) {
+        setErr("Account created but sign-in failed. Try logging in.");
+        setLoading(false);
+        return;
+      }
+      window.location.href = res.url || "/dashboard";
+    } catch {
+      setErr("Something went wrong. Please try again.");
       setLoading(false);
-      return;
     }
-    await signIn("credentials", { email, password, redirect: false });
-    setLoading(false);
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
