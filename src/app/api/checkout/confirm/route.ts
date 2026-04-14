@@ -1,18 +1,43 @@
 import { NextResponse } from "next/server";
-import type Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { stripe } from "@/lib/stripe";
 import { getEligibleTier } from "@/lib/pricing/tiers";
 import { processReferralReward } from "@/lib/referral";
 import { sendOrderEmail } from "@/lib/notifications";
 
-// TODO: Set STRIPE_WEBHOOK_SECRET in Vercel env from Stripe Dashboard → Developers → Webhooks.
-export const runtime = "nodejs";
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = (session.user as any).id;
 
-async function finalizeOrder(orderId: string, userId: string, paymentIntentId: string | null) {
+  const { paymentIntentId, orderId } = await req.json();
+  if (!paymentIntentId || !orderId) {
+    return NextResponse.json({ error: "paymentIntentId and orderId required" }, { status: 400 });
+  }
+
+  const pi = await stripe.paymentIntents.retrieve(paymentIntentId).catch(() => null);
+  if (!pi) return NextResponse.json({ error: "Payment intent not found" }, { status: 404 });
+  if (pi.metadata?.orderId !== orderId || pi.metadata?.userId !== userId) {
+    return NextResponse.json({ error: "Payment does not match order" }, { status: 403 });
+  }
+
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { user: true } });
-  if (!order) return;
-  if (order.status !== "awaiting_payment") return;
+  if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+  if (order.status !== "awaiting_payment") {
+    return NextResponse.json({ success: true, orderId, alreadyProcessed: true });
+  }
+
+  if (pi.status !== "succeeded") {
+    return NextResponse.json({
+      success: false,
+      status: pi.status,
+      requiresAction: pi.status === "requires_action",
+      nextAction: pi.next_action ?? null,
+    });
+  }
 
   const previousCompleted = await prisma.order.count({
     where: { userId, NOT: { id: orderId }, status: { notIn: ["cancelled", "quote_created", "awaiting_payment"] } },
@@ -28,13 +53,13 @@ async function finalizeOrder(orderId: string, userId: string, paymentIntentId: s
       create: {
         userId,
         orderId,
-        stripePaymentIntentId: paymentIntentId,
+        stripePaymentIntentId: pi.id,
         status: "succeeded",
         amountMXN: order.totalPaidMXN,
         creditApplied: order.creditAppliedMXN,
         paidAt: new Date(),
       },
-      update: { status: "succeeded", paidAt: new Date(), stripePaymentIntentId: paymentIntentId ?? undefined },
+      update: { status: "succeeded", paidAt: new Date(), stripePaymentIntentId: pi.id },
     });
     const ts = await tx.tierStatus.upsert({
       where: { userId },
@@ -52,34 +77,6 @@ async function finalizeOrder(orderId: string, userId: string, paymentIntentId: s
     processReferralReward(order.user.referredById, order.id).catch(() => {});
   }
   sendOrderEmail(userId, order.id, "purchased_from_store").catch(() => {});
-}
 
-export async function POST(req: Request) {
-  const sig = req.headers.get("stripe-signature");
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!sig || !secret || secret === "placeholder") {
-    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 503 });
-  }
-
-  const body = await req.text();
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(body, sig, secret);
-  } catch {
-    return NextResponse.json({ error: "Bad signature" }, { status: 400 });
-  }
-
-  if (event.type === "payment_intent.succeeded") {
-    const pi = event.data.object as Stripe.PaymentIntent;
-    const orderId = pi.metadata?.orderId;
-    const userId = pi.metadata?.userId;
-    if (orderId && userId) await finalizeOrder(orderId, userId, pi.id);
-  } else if (event.type === "checkout.session.completed") {
-    const s = event.data.object as Stripe.Checkout.Session;
-    const orderId = s.metadata?.orderId;
-    const userId = s.metadata?.userId;
-    if (orderId && userId) await finalizeOrder(orderId, userId, (s.payment_intent as string) || null);
-  }
-
-  return NextResponse.json({ received: true });
+  return NextResponse.json({ success: true, orderId });
 }

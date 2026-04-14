@@ -7,81 +7,131 @@ import { stripe } from "@/lib/stripe";
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const userId = (session.user as any).id;
 
-  const { quoteId, addressId, useCredit } = await req.json();
+  const { quoteId, addressId, useCredit, method } = await req.json();
   if (!quoteId) return NextResponse.json({ error: "quoteId required" }, { status: 400 });
 
   const [quote, user] = await Promise.all([
     prisma.quote.findUnique({ where: { id: quoteId }, include: { product: true } }),
-    prisma.user.findUnique({ where: { id: session.user.id } }),
+    prisma.user.findUnique({ where: { id: userId } }),
   ]);
-  if (!quote || !user || quote.userId !== session.user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!quote || !user || quote.userId !== userId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (quote.expiresAt.getTime() < Date.now()) return NextResponse.json({ error: "Quote expired" }, { status: 400 });
 
   const existing = await prisma.order.findUnique({ where: { quoteId } });
-  if (existing) return NextResponse.json({ error: "Order exists" }, { status: 409 });
+  if (existing && existing.status !== "awaiting_payment") {
+    return NextResponse.json({ error: "Order already processed" }, { status: 409 });
+  }
 
   const totalMXN = Number(quote.totalMXN);
   const creditAvailable = Number(user.creditMXN);
   const creditApplied = useCredit ? Math.min(creditAvailable, Math.max(0, totalMXN - 10)) : 0;
-  const chargedMXN = totalMXN - creditApplied;
+  const chargedMXN = Math.max(0, totalMXN - creditApplied);
+  const amountCents = Math.round(chargedMXN * 100);
 
-  const order = await prisma.order.create({
-    data: {
-      userId: session.user.id,
+  const order = existing
+    ? await prisma.order.update({
+        where: { id: existing.id },
+        data: {
+          addressId: addressId || existing.addressId,
+          totalPaidMXN: chargedMXN,
+          creditAppliedMXN: creditApplied,
+        },
+      })
+    : await prisma.order.create({
+        data: {
+          userId,
+          quoteId: quote.id,
+          addressId: addressId || null,
+          status: "awaiting_payment",
+          productTitle: quote.product.title,
+          productImageUrl: quote.product.imageUrl,
+          totalPaidMXN: chargedMXN,
+          creditAppliedMXN: creditApplied,
+          statusHistory: { create: { status: "awaiting_payment", changedBy: userId } },
+        },
+      });
+
+  const paymentMethodTypes: string[] =
+    method === "spei"
+      ? ["customer_balance"]
+      : method === "oxxo"
+      ? ["oxxo"]
+      : ["card", "oxxo"];
+
+  const piParams: any = {
+    amount: amountCents,
+    currency: "mxn",
+    payment_method_types: paymentMethodTypes,
+    metadata: {
+      orderId: order.id,
+      userId,
       quoteId: quote.id,
-      addressId: addressId || null,
-      status: "awaiting_payment",
       productTitle: quote.product.title,
-      productImageUrl: quote.product.imageUrl,
-      totalPaidMXN: chargedMXN,
-      creditAppliedMXN: creditApplied,
-      statusHistory: { create: { status: "awaiting_payment", changedBy: session.user.id } },
+      storeName: quote.product.store,
+      creditAppliedMXN: creditApplied.toString(),
     },
-  });
+    description: `BorderCart Order — ${quote.product.title}`,
+    receipt_email: session.user.email || undefined,
+  };
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
-  const lineItems: any[] = [{
-    price_data: {
-      currency: "mxn",
-      product_data: { name: quote.product.title, images: quote.product.imageUrl ? [quote.product.imageUrl] : undefined },
-      unit_amount: Math.round(totalMXN * 100),
-    },
-    quantity: 1,
-  }];
-
-  const discounts: any[] = [];
-  if (creditApplied > 0) {
-    const coupon = await stripe.coupons.create({
-      amount_off: Math.round(creditApplied * 100),
-      currency: "mxn",
-      duration: "once",
-      name: "BorderCart credit",
-    });
-    discounts.push({ coupon: coupon.id });
+  if (method === "spei") {
+    piParams.payment_method_data = { type: "customer_balance" };
+    piParams.payment_method_options = {
+      customer_balance: {
+        funding_type: "bank_transfer",
+        bank_transfer: { type: "mx_bank_transfer" },
+      },
+    };
+    if (!user.email) return NextResponse.json({ error: "Email required for SPEI" }, { status: 400 });
+    let customerId: string | null = null;
+    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    if (customers.data[0]) customerId = customers.data[0].id;
+    else {
+      const c = await stripe.customers.create({ email: user.email, name: user.name || undefined, metadata: { userId } });
+      customerId = c.id;
+    }
+    piParams.customer = customerId;
+    piParams.confirm = true;
   }
 
-  const stripeSession = await stripe.checkout.sessions.create({
-    mode: "payment",
-    payment_method_types: ["card"],
-    customer_email: session.user.email || undefined,
-    line_items: lineItems,
-    discounts: discounts.length ? discounts : undefined,
-    metadata: { orderId: order.id, quoteId: quote.id, userId: session.user.id },
-    success_url: `${origin}/orders/${order.id}?success=1`,
-    cancel_url: `${origin}/quote/${quote.id}?cancelled=1`,
-  });
+  try {
+    const paymentIntent = await stripe.paymentIntents.create(piParams);
 
-  await prisma.payment.create({
-    data: {
-      userId: session.user.id,
+    await prisma.payment.upsert({
+      where: { orderId: order.id },
+      create: {
+        userId,
+        orderId: order.id,
+        stripePaymentIntentId: paymentIntent.id,
+        status: "pending",
+        amountMXN: chargedMXN,
+        creditApplied,
+      },
+      update: {
+        stripePaymentIntentId: paymentIntent.id,
+        amountMXN: chargedMXN,
+        creditApplied,
+      },
+    });
+
+    return NextResponse.json({
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      nextAction: paymentIntent.next_action ?? null,
       orderId: order.id,
-      stripeSessionId: stripeSession.id,
-      status: "pending",
-      amountMXN: chargedMXN,
-      creditApplied,
-    },
-  });
-
-  return NextResponse.json({ url: stripeSession.url });
+      totalMXN: chargedMXN,
+      product: {
+        title: quote.product.title,
+        imageUrl: quote.product.imageUrl,
+        store: quote.product.store,
+      },
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "Could not create payment intent" },
+      { status: 400 }
+    );
+  }
 }
