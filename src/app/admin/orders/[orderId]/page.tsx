@@ -4,6 +4,7 @@ import { formatMXN } from "@/lib/utils/currency";
 import { format } from "date-fns";
 import { StatusBadge } from "@/components/StatusBadge";
 import { AdminOrderControls } from "@/components/AdminOrderControls";
+import { AdminManualTransferReview } from "@/components/AdminManualTransferReview";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
 
@@ -81,7 +82,15 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ o
           </div>
         </div>
 
-        <aside>
+        <aside className="space-y-5">
+          {order.payment?.confirmationImageUrl && (
+            <AdminManualTransferReview
+              orderId={order.id}
+              confirmationImageUrl={order.payment.confirmationImageUrl}
+              paymentStatus={order.payment.status}
+              rejectionNote={order.payment.rejectionNote}
+            />
+          )}
           <AdminOrderControls
             orderId={order.id}
             currentStatus={order.status}

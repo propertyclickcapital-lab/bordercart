@@ -49,6 +49,12 @@ export default async function CheckoutPage({ params }: { params: Promise<{ quote
         creditMXN: Number(user?.creditMXN ?? 0),
       }}
       publishableKey={process.env.STRIPE_PUBLISHABLE_KEY || ""}
+      bank={{
+        bankName: process.env.BANK_NAME || "",
+        accountName: process.env.ACCOUNT_NAME || "",
+        clabe: process.env.CLABE || "",
+        accountNumber: process.env.ACCOUNT_NUMBER || "",
+      }}
     />
   );
 }

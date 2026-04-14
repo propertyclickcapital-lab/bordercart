@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Elements } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
-import { Lock, ShieldCheck, CheckCircle2, CreditCard, Building2, Store, ChevronDown } from "lucide-react";
+import { Lock, ShieldCheck, CheckCircle2, CreditCard, Building2, Store, Landmark, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatMXN } from "@/lib/utils/currency";
 import { CardTab } from "./checkout/CardTab";
 import { OxxoTab } from "./checkout/OxxoTab";
 import { SpeiTab } from "./checkout/SpeiTab";
+import { ManualTransferTab, type BankDetails } from "./checkout/ManualTransferTab";
 
 type Quote = {
   id: string;
@@ -28,13 +29,14 @@ type Addr = {
 type User = { name: string; email: string; creditMXN: number };
 
 export function CustomCheckout({
-  quote, addresses, user, publishableKey,
+  quote, addresses, user, publishableKey, bank,
 }: {
-  quote: Quote; addresses: Addr[]; user: User; publishableKey: string;
+  quote: Quote; addresses: Addr[]; user: User; publishableKey: string; bank: BankDetails;
 }) {
   const stripePromise = useMemo(() => (publishableKey ? loadStripe(publishableKey) : null), [publishableKey]);
+  const bankConfigured = !!(bank.bankName && bank.clabe);
 
-  const [tab, setTab] = useState<"card" | "spei" | "oxxo">("card");
+  const [tab, setTab] = useState<"card" | "spei" | "oxxo" | "transfer">("card");
   const [addressId, setAddressId] = useState<string | null>(addresses[0]?.id ?? null);
   const [adding, setAdding] = useState(addresses.length === 0);
   const [newAddr, setNewAddr] = useState({
@@ -175,10 +177,13 @@ export function CustomCheckout({
           </div>
 
           <div className="mt-8 border-b border-[var(--border)]">
-            <div className="grid grid-cols-3">
+            <div className={`grid ${bankConfigured ? "grid-cols-4" : "grid-cols-3"}`}>
               <TabButton active={tab === "card"} onClick={() => setTab("card")} icon={<CreditCard className="h-4 w-4" />} label="Tarjeta" />
               <TabButton active={tab === "spei"} onClick={() => setTab("spei")} icon={<Building2 className="h-4 w-4" />} label="SPEI" />
               <TabButton active={tab === "oxxo"} onClick={() => setTab("oxxo")} icon={<Store className="h-4 w-4" />} label="OXXO" />
+              {bankConfigured && (
+                <TabButton active={tab === "transfer"} onClick={() => setTab("transfer")} icon={<Landmark className="h-4 w-4" />} label="Transferencia" />
+              )}
             </div>
           </div>
 
@@ -207,6 +212,16 @@ export function CustomCheckout({
                   />
                 )}
               </Elements>
+            )}
+            {tab === "transfer" && bankConfigured && (
+              <ManualTransferTab
+                quoteId={quote.id}
+                charged={charged}
+                useCredit={useCredit}
+                resolveAddressId={resolveAddressId}
+                bank={bank}
+                previewOrderId={quote.id.slice(-6).toUpperCase()}
+              />
             )}
           </div>
         </section>
