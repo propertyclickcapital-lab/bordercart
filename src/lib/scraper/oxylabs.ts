@@ -16,8 +16,8 @@ export async function scrapeWithOxylabs(url: string): Promise<string> {
       geo_location: "United States",
       locale: "en-us",
       browser_instructions: [
-        { type: "wait_for_element", selector: "h1", timeout: 10000 },
-        { type: "wait", value: 3000 },
+        { type: "wait_for_element", selector: { type: "css", value: "h1" }, wait_time_s: 10 },
+        { type: "wait", wait_time_s: 3 },
       ],
     },
     {

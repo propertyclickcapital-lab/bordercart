@@ -161,6 +161,7 @@ model ImportedProduct {
   currency     String     @default("USD")
   availability String?
   isSupported  Boolean    @default(true)
+  needsPricing Boolean    @default(false)
   rawData      Json?
   scrapedAt    DateTime   @default(now())
   quotes       Quote[]
