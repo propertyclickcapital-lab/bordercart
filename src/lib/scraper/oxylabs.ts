@@ -15,7 +15,10 @@ export async function scrapeWithOxylabs(url: string): Promise<string> {
       render: "html",
       geo_location: "United States",
       locale: "en-us",
-      browser_instructions: [{ type: "wait", value: 2000 }],
+      browser_instructions: [
+        { type: "wait_for_element", selector: "h1", timeout: 10000 },
+        { type: "wait", value: 3000 },
+      ],
     },
     {
       auth: {
