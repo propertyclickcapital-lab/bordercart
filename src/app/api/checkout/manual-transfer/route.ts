@@ -54,6 +54,9 @@ export async function POST(req: Request) {
           productImageUrl: quote.product.imageUrl,
           totalPaidMXN: chargedMXN,
           creditAppliedMXN: creditApplied,
+          selectedSize: quote.selectedSize,
+          selectedColor: quote.selectedColor,
+          selectedVariant: quote.selectedVariant,
           statusHistory: { create: { status: "awaiting_payment", changedBy: userId, note: "Manual transfer submitted" } },
         },
       });

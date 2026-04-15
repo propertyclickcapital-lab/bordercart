@@ -159,11 +159,14 @@ model ImportedProduct {
   imageUrl     String?
   priceUSD     Decimal    @db.Decimal(12, 2)
   currency     String     @default("USD")
-  availability String?
-  isSupported  Boolean    @default(true)
-  needsPricing Boolean    @default(false)
-  rawData      Json?
-  scrapedAt    DateTime   @default(now())
+  availability    String?
+  isSupported     Boolean    @default(true)
+  needsPricing    Boolean    @default(false)
+  availableSizes  String[]
+  availableColors String[]
+  variantImages   String[]
+  rawData         Json?
+  scrapedAt       DateTime   @default(now())
   quotes       Quote[]
   wishlisted   Wishlist[]
 
@@ -192,6 +195,9 @@ model Quote {
   commissionPercent    Decimal?        @db.Decimal(6, 4)
   fxRateUsed           Decimal?        @db.Decimal(12, 6)
   adminSetPrice        Boolean         @default(false)
+  selectedSize         String?
+  selectedColor        String?
+  selectedVariant      String?
   expiresAt            DateTime
   createdAt            DateTime        @default(now())
   user                 User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -219,6 +225,9 @@ model Order {
   issueNote        String?     @db.Text
   issueType        String?
   creditAppliedMXN Decimal     @default(0) @db.Decimal(14, 2)
+  selectedSize     String?
+  selectedColor    String?
+  selectedVariant  String?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 

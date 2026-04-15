@@ -43,6 +43,20 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ o
             </div>
           </div>
 
+          {(order.selectedSize || order.selectedColor) && (
+            <div className="rounded-lg border-2 border-[var(--orange)] bg-[var(--orange-light)] p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-[var(--orange-dark)]">Buyer selected options</p>
+              <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                {order.selectedSize && (
+                  <div><span className="text-[var(--ink-2)]">Size: </span><span className="font-bold">{order.selectedSize}</span></div>
+                )}
+                {order.selectedColor && (
+                  <div><span className="text-[var(--ink-2)]">Color: </span><span className="font-bold">{order.selectedColor}</span></div>
+                )}
+              </div>
+            </div>
+          )}
+
           <a
             href={order.quote.product.sourceUrl}
             target="_blank"

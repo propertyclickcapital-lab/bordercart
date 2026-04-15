@@ -4,13 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatMXN, formatUSD } from "@/lib/utils/currency";
 import { Badge } from "@/components/ui/badge";
-import { BuyNowButton } from "@/components/BuyNowButton";
 import { QuoteCountdown } from "@/components/QuoteCountdown";
 import { WishlistHeart } from "@/components/WishlistHeart";
 import { ShieldCheck, MapPin, Package } from "lucide-react";
 import { getTierLabel } from "@/lib/pricing/tiers";
 import { CancelledBanner } from "@/components/CancelledBanner";
 import { SpecialQuoteView } from "@/components/SpecialQuoteView";
+import { QuoteVariantPanel } from "@/components/QuoteVariantPanel";
 
 export default async function QuotePage({ params }: { params: Promise<{ quoteId: string }> }) {
   const session = await getServerSession(authOptions);
@@ -100,7 +100,18 @@ export default async function QuotePage({ params }: { params: Promise<{ quoteId:
             </div>
           )}
 
-          <div className="mt-7"><BuyNowButton quoteId={quote.id} /></div>
+          <div className="mt-7">
+            <QuoteVariantPanel
+              quoteId={quote.id}
+              totalMXN={Number(quote.totalMXN)}
+              sizes={quote.product.availableSizes ?? []}
+              colors={quote.product.availableColors ?? []}
+              variantImages={quote.product.variantImages ?? []}
+              mainImage={quote.product.imageUrl}
+              initialSize={quote.selectedSize}
+              initialColor={quote.selectedColor}
+            />
+          </div>
           <div className="mt-3 text-center"><QuoteCountdown expiresAt={quote.expiresAt.toISOString()} /></div>
         </div>
       </div>

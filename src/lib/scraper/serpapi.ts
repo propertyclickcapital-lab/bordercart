@@ -81,6 +81,63 @@ export async function searchProductByUrl(url: string): Promise<ProductResult> {
   };
 }
 
+export async function getProductVariants(
+  query: string,
+  _store: string
+): Promise<{
+  sizes: string[];
+  colors: string[];
+  variants: { title: string; price: number; imageUrl: string | null }[];
+}> {
+  const response = await axios.get(SERPAPI_URL, {
+    params: {
+      engine: "google_shopping",
+      q: query,
+      gl: "us",
+      hl: "en",
+      api_key: SERPAPI_KEY,
+    },
+    timeout: 15000,
+  });
+
+  const results = response.data.shopping_results || [];
+
+  const sizes = new Set<string>();
+  const colors = new Set<string>();
+  const variants: { title: string; price: number; imageUrl: string | null }[] = [];
+
+  for (const r of results.slice(0, 20)) {
+    const title = r.title || "";
+    const sizeMatch = title.match(
+      /\b(XS|S|M|L|XL|XXL|XXXL|[0-9]+\.?[0-9]*\s*(?:US|UK|EU|cm)?)\b/gi
+    );
+    if (sizeMatch) sizeMatch.forEach((s: string) => sizes.add(s.trim()));
+
+    const colorKeywords = [
+      "black", "white", "red", "blue", "green", "yellow", "pink",
+      "purple", "orange", "brown", "grey", "gray", "navy", "beige",
+      "cream", "gold", "silver",
+    ];
+    colorKeywords.forEach((color) => {
+      if (title.toLowerCase().includes(color)) {
+        colors.add(color.charAt(0).toUpperCase() + color.slice(1));
+      }
+    });
+
+    variants.push({
+      title: r.title,
+      price: parseFloat(String(r.price || "0").replace(/[^0-9.]/g, "")) || 0,
+      imageUrl: r.thumbnail || null,
+    });
+  }
+
+  return {
+    sizes: Array.from(sizes).slice(0, 12),
+    colors: Array.from(colors).slice(0, 10),
+    variants: variants.slice(0, 8),
+  };
+}
+
 export async function searchProducts(query: string): Promise<ProductResult[]> {
   const response = await axios.get(SERPAPI_URL, {
     params: {
