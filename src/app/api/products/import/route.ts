@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { calculateOrderPrice } from "@/lib/pricing/engine";
 import { getFxRate } from "@/lib/pricing/fx";
 import { getActivePricingRule } from "@/lib/pricing-rule";
-import { searchProductByUrl, getProductVariants } from "@/lib/scraper/serpapi";
+import { searchProductByUrl } from "@/lib/scraper/serpapi";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -16,31 +16,17 @@ export async function POST(req: NextRequest) {
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
   try {
-    const { title, imageUrl, priceUSD, store } = await searchProductByUrl(url);
+    const { title, imageUrl, priceUSD, store, availableSizes, availableColors, variantImages } = await searchProductByUrl(url);
     if (!title || title.length < 3) throw new Error("No product found");
 
-    const [fxRate, pricingRule, user, variants] = await Promise.all([
+    const [fxRate, pricingRule, user] = await Promise.all([
       getFxRate(),
       getActivePricingRule(),
       prisma.user.findUnique({ where: { id: userId } }),
-      getProductVariants(`${title} ${store}`, store).catch(() => ({
-        sizes: [] as string[],
-        colors: [] as string[],
-        variants: [] as { title: string; price: number; imageUrl: string | null }[],
-      })),
     ]);
 
-    const variantImages = Array.from(
-      new Set(
-        variants.variants
-          .map((v) => v.imageUrl)
-          .filter((u): u is string => !!u)
-      )
-    ).slice(0, 6);
-
-    const effectivePriceUSD = priceUSD || 80;
     const breakdown = calculateOrderPrice({
-      productPriceUSD: effectivePriceUSD,
+      productPriceUSD: priceUSD || 80,
       userTier: user?.tier || "DEFAULT",
       fxRate,
       pricingRule,
@@ -52,12 +38,12 @@ export async function POST(req: NextRequest) {
         store,
         title,
         imageUrl,
-        priceUSD: effectivePriceUSD,
-        currency: "USD",
+        priceUSD: priceUSD || 80,
+        currency: 'USD',
         isSupported: true,
         needsPricing: priceUSD === 0,
-        availableSizes: variants.sizes,
-        availableColors: variants.colors,
+        availableSizes,
+        availableColors,
         variantImages,
       },
     });
@@ -66,7 +52,7 @@ export async function POST(req: NextRequest) {
       data: {
         userId,
         productId: product.id,
-        productPriceUSD: effectivePriceUSD,
+        productPriceUSD: priceUSD || 80,
         fxRate,
         fxSpreadPercent: pricingRule.fxSpreadPercent,
         takeRatePercent: breakdown.takeRatePercent,
